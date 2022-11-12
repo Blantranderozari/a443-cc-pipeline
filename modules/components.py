@@ -1,3 +1,6 @@
+"""Initiate tfx pipeline components
+"""
+
 import os
 
 import tensorflow as tf
@@ -19,16 +22,27 @@ from tfx.types.standard_artifacts import Model, ModelBlessing
 from tfx.dsl.input_resolution.strategies.latest_blessed_model_strategy import (
     LatestBlessedModelStrategy)
 
-
 def init_components(
     data_dir,
     transform_module,
     training_module,
     training_steps,
     eval_steps,
-    serving_model,
+    serving_model_dir,
 ):
+    """Initiate tfx pipeline components
 
+    Args:
+        data_dir (str): path to the data
+        transform_module (str): path to transform module
+        training_module (str): path to training module
+        training_steps (int): number of training steps
+        eval_steps (int): number of eval steps
+        serving_model_dir (str): path to serving model directory
+
+    Returns:
+        TFX Components
+    """
     output = example_gen_pb2.Output(
         split_output = example_gen_pb2.SplitConfig(splits=[
             example_gen_pb2.SplitConfig.Split(name='train',hash_buckets=8),
@@ -127,8 +141,16 @@ def init_components(
         )
     )
 
-
-
-
+    components =(
+        example_gen,
+        statistics_gen,
+        schema_gen,
+        example_validator,
+        transform,
+        trainer,
+        model_resolver,
+        evaluator,
+        pusher
+    )
 
     return components
