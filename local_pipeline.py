@@ -43,3 +43,20 @@ def init_local_pipeline(
         ),
         eam_pipeline_args=beam_args
     )
+
+if __name__ == "__main__":
+    logging.set_verbosity(logging.INFO)
+
+    from modules.components import init_components
+
+    components = init_components(
+        DATA_ROOT, 
+        transform_module=TRANSFORM_MODULE_FILE, 
+        training_module=TRAINER_MODULE_FILE, 
+        training_steps=5000, 
+        eval_steps=1000, 
+        serving_model_dir=serving_model_dir
+        )
+    
+    pipeline = init_local_pipeline(components, pipeline_root)
+    BeamDagRunner().run(pipeline=pipeline)
