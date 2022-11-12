@@ -34,4 +34,14 @@ def init_components(
             example_gen_pb2.SplitConfig.Split(name='train',hash_buckets=8)
         ])
     )
+
+    example_gen = CsvExampleGen(
+        input_base=data_dir,
+        output_config=output
+    )
+
+
+
+
+
     return components
