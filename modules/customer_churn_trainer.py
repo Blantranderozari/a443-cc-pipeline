@@ -1,3 +1,6 @@
+"""Training module
+"""
+
 import os
 
 import tensorflow as tf
@@ -50,3 +53,97 @@ def get_model(show_summary=True):
 def gzip_reader_fn(filenames):
     """Load compressed data"""
     return tf.data.TFRecordDataset(filenames, compression_type='GZIP')
+
+def get_serve_tf_examples_fn(model, tf_transform_output):
+    """Returns a function that parses a serialized tf.Example"""
+
+    model.tft_layer = tf_transform_output.transform_features_layer()
+
+    @tf.function
+    def serve_tf_examples_fn(serialized_tf_examples):
+        """Returns the output to be used in serving signatures"""
+        feature_spec = tf_transform_output.raw_feature_spec()
+        feature_spec.pop(LABEL_KEY)
+        parsed_feature = tf.io.parse_example(
+            serialized_tf_examples, feature_spec
+        )
+
+        transformed_features = model.tft_layer(parsed_features)
+
+        outputs = model(transformed_features)
+        return {"outputs": outputs}
+
+    return serve_tf_examples_fn
+
+def input_fn(file_pattern, tf_transform_output, batch_size=64):
+    """Generates features and labels for tuning/training
+    Args:
+        file_pattern: input tfrecord file pattern
+        tf_transform_output: A TFTransformOutput
+        batch_size: representing the number of consecutive elements of 
+        returned dataset to combine
+    Returns:
+        A datasets that contains (features, indices) tuple where features
+        is dictionary of Tensors, and indices is a single Tensor of 
+        label indices
+    """
+    transformed_feature_spec = (
+        tf_transform_output.transformed_feature_spec().copy()
+    )
+
+    dataset = tf.data.experimental.make_batched_features_dataset(
+        file_pattern=file_pattern,
+        batch_size=batch_size,
+        features=transformed_feature_spec,
+        reader=gzip_reader_fn,
+        label_key=transformed_name(LABEL_KEY)
+    )
+
+    return dataset
+
+# TFX Trainder will call this function
+def run_fn(fn_args):
+    """Train the model based on given args
+    Args:
+        fn_args: Holds args used to train the model as name/value pairs
+    """
+    tf_transform_output = tft.TFTransformOutput(fn_args.transform_output)
+
+    train_dataset = input_fn(fn_args.train_files, tf_transform_output, 64)
+    eval_dataset = input_fn(fn_args.eval_files, tf_transform_output, 64)
+
+    model = get_model()
+
+    log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
+    tensorboard_callback = tf.keras.callback.Tensorboard(
+        log_dir=log_dir, update_freq='batch'
+    )
+
+    model.fit(
+        train_dataset,
+        steps_per_epoch=fn_args.train_steps,
+        validation_data=eval_dataset,
+        validation_steps=fn_args.eval_steps,
+        callback=[tensorboard_callback],
+        epoch=10
+    )
+
+    signatures = {
+        "serving_default": get_serve_tf_examples_fn(
+            model, tf_transform_output
+        ).get_concrete_function(
+            tf.TensorSpec(shape=[None], dtype=tf.string, name='examples' )
+        )
+    }
+    model.save(
+        fn_args.serving_model_dir, save_format="tf", signatures=signatures
+    )
+
+    plot_model(
+        model,
+        to_file='images/model_plot.png',
+        show_shapes=True,
+        show_layer_names=True
+    )
+    
+
