@@ -73,6 +73,61 @@ def init_components(
             num_steps=eval_steps)
     )
 
+    model_resolver = Resolver(
+        strategy_class=LatestBlessedModelStrategy,
+        model = Channel(type=Model),
+        model_blessing = Channel(type=ModelBlessing)
+    ).with_id('Latest_blessed_model_resolver')
+
+    slicing_specs=[
+        tfma.SlicingSpec(),
+        tfam.SlicingSpec(feature_keys=[
+            'gender',
+            'Partner'
+        ])
+    ]
+
+    metrics_specs = [
+        tfma.MetricsSpec(metric=[
+            tfma.MetricConfig(class_name='AUC'),
+            tfma.MetricConfig(class_name='Precision'),
+            tfma.MetricConfig(class_name='Recall'),
+            tfma.MetricConfig(class_name='ExampleCount'),
+            tfma.MetricConfig(class_name='BinaryAccuracy',
+                threshold=tfma.MetricThreshold(
+                    value_threshold=tfma.GenericValueThreshold(
+                        lower_bound={'value':0.5}),
+                    change_threshold=tfma.GenericChangeThreshold(
+                        direction=tfma.MetricDirection.HIGHER_IS_BETTER,
+                        absolute={'value':0.0001})
+                )
+            )
+        ])
+    ]
+
+    eval_config = tfma.EvalConfig(
+        model_specs=[tfma.ModelSpec(label_key='Churn')],
+        slicing_specs=slicing_specs,
+        metrics_specs=metrics_specs
+    )
+
+    evaluator = Evaluator(
+        examples=examples_gen.outputs['examples'],
+        model=trainer.outputs['model'],
+        baseline_model=model_resolver.outputs['model'],
+        eval_config=eval_config)
+
+    pusher = Pusher(
+        model=trainer.outputs['model'],
+        model_blessing=evaluator.outputs['blessing'],
+        push_destination=pusher_pb2.PushDestination(
+            filesystem=pusher_pb2.PushDestination.Filesystem(
+                base_directory=serving_model_dir
+            )
+        )
+    )
+
+
 
 
 
