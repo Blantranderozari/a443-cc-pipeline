@@ -38,15 +38,15 @@ def get_model(show_summary=True):
     deep = tf.keras.layers.Dense(16, activation='relu')(deep)
     outputs = tf.keras.layers.Dense(1, activation='sigmoid') (deep)
 
-    model = tf.keras.models.Model(input=input_features,outputs=outputs)
+    model = tf.keras.models.Model(inputs=input_features,outputs=outputs)
     model.compile(
-        optimizers=tf.keras.optimizers.Adam(learning_rate=0.001),
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
         loss="binary_crossentropy",
         metrics=[tf.keras.metrics.BinaryAccuracy()]
     )
 
     if show_summary:
-        model.summmary()
+        model.summary()
     
     return model
 
@@ -64,7 +64,7 @@ def get_serve_tf_examples_fn(model, tf_transform_output):
         """Returns the output to be used in serving signatures"""
         feature_spec = tf_transform_output.raw_feature_spec()
         feature_spec.pop(LABEL_KEY)
-        parsed_feature = tf.io.parse_example(
+        parsed_features = tf.io.parse_example(
             serialized_tf_examples, feature_spec
         )
 
@@ -115,7 +115,7 @@ def run_fn(fn_args):
     model = get_model()
 
     log_dir = os.path.join(os.path.dirname(fn_args.serving_model_dir), 'logs')
-    tensorboard_callback = tf.keras.callback.Tensorboard(
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(
         log_dir=log_dir, update_freq='batch'
     )
 
@@ -124,8 +124,8 @@ def run_fn(fn_args):
         steps_per_epoch=fn_args.train_steps,
         validation_data=eval_dataset,
         validation_steps=fn_args.eval_steps,
-        callback=[tensorboard_callback],
-        epoch=10
+        callbacks=[tensorboard_callback],
+        epochs=10
     )
 
     signatures = {
