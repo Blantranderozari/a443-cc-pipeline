@@ -7,7 +7,7 @@ import tensorflow as tf
 import tensorflow_model_analysis as tfma
 from tfx.components import (
     CsvExampleGen,
-    StatisticGen,
+    StatisticsGen,
     SchemaGen,
     ExampleValidator,
     Transform,
@@ -44,7 +44,7 @@ def init_components(
         TFX Components
     """
     output = example_gen_pb2.Output(
-        split_output = example_gen_pb2.SplitConfig(splits=[
+        split_config = example_gen_pb2.SplitConfig(splits=[
             example_gen_pb2.SplitConfig.Split(name='train',hash_buckets=8),
             example_gen_pb2.SplitConfig.Split(name='eval',hash_buckets=2)
         ])
@@ -55,7 +55,7 @@ def init_components(
         output_config=output
     )
 
-    statistics_gen = StatisticGen(
+    statistics_gen = StatisticsGen(
         examples=example_gen.outputs["examples"]
     )
 
@@ -77,7 +77,7 @@ def init_components(
     trainer = Trainer(
         module_file=os.path.abspath(training_module),
         examples=transform.outputs["transformed_examples"],
-        transform_graph=transform.ouputs["transform_graph"],
+        transform_graph=transform.outputs["transform_graph"],
         schema=schema_gen.outputs["schema"],
         train_args=trainer_pb2.TrainArgs(
             splits=["train"],
@@ -95,14 +95,14 @@ def init_components(
 
     slicing_specs=[
         tfma.SlicingSpec(),
-        tfam.SlicingSpec(feature_keys=[
+        tfma.SlicingSpec(feature_keys=[
             'gender',
             'Partner'
         ])
     ]
 
     metrics_specs = [
-        tfma.MetricsSpec(metric=[
+        tfma.MetricsSpec(metrics=[
             tfma.MetricConfig(class_name='AUC'),
             tfma.MetricConfig(class_name='Precision'),
             tfma.MetricConfig(class_name='Recall'),
@@ -126,7 +126,7 @@ def init_components(
     )
 
     evaluator = Evaluator(
-        examples=examples_gen.outputs['examples'],
+        examples=example_gen.outputs['examples'],
         model=trainer.outputs['model'],
         baseline_model=model_resolver.outputs['model'],
         eval_config=eval_config)
